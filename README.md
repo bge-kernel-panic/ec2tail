@@ -106,3 +106,12 @@ By design, the following are out of scope:
 
 macOS and Linux are supported. The SSM data-channel transport is platform-neutral, so
 Windows is likely to work but is not a supported target.
+
+## License
+
+`ec2tail` is licensed under the GNU General Public License v3.0 — see [`LICENSE`](LICENSE).
+
+The compiled binary statically links third-party Go modules whose licenses (Apache-2.0,
+BSD, and MIT — including `github.com/mmmorris1975/ssm-session-client`, © 2020 Mike Morris)
+require their notices to be preserved. Those notices are reproduced in
+[`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).

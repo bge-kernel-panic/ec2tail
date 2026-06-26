@@ -56,6 +56,8 @@ func run() int {
 
 	if *showVersion {
 		fmt.Println("ec2tail", version)
+		fmt.Println("License: GPL-3.0-only <https://www.gnu.org/licenses/gpl-3.0.html>")
+		fmt.Println("Third-party licenses: https://github.com/bge-kernel-panic/ec2tail/blob/main/THIRD_PARTY_LICENSES.md")
 		return 0
 	}
 
