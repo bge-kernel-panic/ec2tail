@@ -143,13 +143,18 @@ Usage:
 
 Flags:
   --tag key=value   instance filter (repeatable, AND-combined; at least one required)
+                    Values support AWS wildcards: '*' matches zero or more
+                    characters, '?' matches one. Quote them so the local shell
+                    does not expand them. Useful for messy tags, e.g.
+                    --tag 'Name=web-*' (prefix) or --tag 'Name=*staging*'.
 
 Arguments:
   one or more remote file paths/globs (quote them so the local shell does not expand them)
 
 AWS region, profile, and credentials are taken from the environment.
 
-Example:
+Examples:
   ec2tail --tag app=web --tag env=prod '/var/log/app/*.log'
+  ec2tail --tag 'Name=web-*' '/var/log/app/*.log'
 `)
 }
