@@ -24,9 +24,7 @@ watching its logs usually means SSHing into each box in a separate terminal. `ec
 fans out to all matching instances at once and folds their output into a single stream,
 each line prefixed with its source.
 
-Because it speaks the SSM data-channel protocol in-process, there is nothing to install on
-your machine beyond the binary itself, and nothing to configure on the instances beyond the
-SSM agent they already run.
+It uses AWS libraries to do all its work, and doesn't require any AWS CLI installation.
 
 ## Install
 
@@ -66,34 +64,6 @@ ec2tail --tag 'Name=web-*' '/var/log/app/*.log' '/var/log/nginx/error.log'
 ```
 
 Press **Ctrl-C** to stop. `ec2tail` tears down every live session cleanly before exiting.
-
-## How it works
-
-- **Discovery** — `ec2:DescribeInstances` filtered by your tags and restricted to
-  `instance-state-name=running`. Zero matches is a clear error with a non-zero exit. The
-  matched instance count is printed before connecting, giving you a Ctrl-C window.
-- **Identity** — each line is prefixed with the instance's `Name` tag, falling back to the
-  instance ID. Colors are stable per host (only on a TTY, and suppressed when
-  [`NO_COLOR`](https://no-color.org/) is set).
-- **Tailing** — for each instance, a remote `tail -n 10 -f <globs> 2>&1` is run over the SSM
-  data channel. Remote `tail` errors (e.g. a missing file) are folded inline with the host
-  prefix. A per-session random marker swallows the connection banner and shell prompt so only
-  real log output is shown.
-- **Serialization** — one goroutine per instance feeds **complete lines** to a single writer
-  goroutine that owns stdout, so lines never interleave mid-line across hosts.
-- **Independent sessions** — a host that fails to connect or whose session dies produces a
-  one-line `✗` error and the rest keep streaming; one bad box never aborts the run. There is
-  no auto-reconnect.
-
-### Cleanup
-
-`ec2tail` does not leave orphaned SSM sessions behind:
-
-1. **Primary** — on Ctrl-C (or normal EOF) every channel is terminated and closed in-process.
-2. **Sweep** — on shutdown it calls `ssm:DescribeSessions` and terminates any stragglers for
-   the targeted instances, which also reaps orphans left by a previously `SIGKILL`ed run.
-
-Only a `SIGKILL` of `ec2tail` itself is unrecoverable, since no handler can run.
 
 ## Requirements
 

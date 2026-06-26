@@ -20,6 +20,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 )
 
+// version is the build version, injected via -ldflags "-X main.version=...".
+var version = "dev"
+
 // tag is a single key=value instance filter.
 type tag struct {
 	key   string
@@ -46,9 +49,15 @@ func main() {
 
 func run() int {
 	var tags tagList
+	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Var(&tags, "tag", "instance filter key=value (repeatable, AND-combined; at least one required)")
 	flag.Usage = usage
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println("ec2tail", version)
+		return 0
+	}
 
 	globs := flag.Args()
 	if len(tags) == 0 || len(globs) == 0 {
