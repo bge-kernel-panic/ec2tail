@@ -69,17 +69,24 @@ func streamHost(ctx context.Context, cfg aws.Config, h *host, inst instance, glo
 		return
 	}
 
+	tracef("%s: session opened (target=%s)", h.name, inst.id)
 	s := &session{host: h, ch: ch}
 	reg.add(s)
 	defer s.teardown()
 	incr(ran)
 
-	_ = ch.SetTerminalSize(termRows, termCols)
+	if err := ch.SetTerminalSize(termRows, termCols); err != nil {
+		tracef("%s: SetTerminalSize failed: %v", h.name, err)
+	}
 
 	marker := newMarker()
+	// The leading bare `echo` puts a newline between the shell line-editor's teardown bytes (a
+	// bracketed-paste-disable escape + carriage return, flushed before the first command runs) and
+	// the marker, so the marker lands alone on its own line and the exact-match below is reliable.
 	// exec replaces the shell with tail so there is no prompt redraw, and a clean exit closes the
 	// session. 2>&1 folds remote tail errors (e.g. "cannot open") inline under this host's prefix.
-	command := fmt.Sprintf("echo %s; exec tail -n 10 -f %s 2>&1\n", marker, strings.Join(globs, " "))
+	command := fmt.Sprintf("echo; echo %s; exec tail -n 10 -f %s 2>&1\n", marker, strings.Join(globs, " "))
+	tracef("%s: sending command: %s", h.name, strings.TrimRight(command, "\n"))
 	if _, err := ch.Write([]byte(command)); err != nil {
 		out <- outMsg{isErr: true, text: h.statusLine("✗", "failed to send command: "+err.Error())}
 		return
@@ -88,6 +95,8 @@ func streamHost(ctx context.Context, cfg aws.Config, h *host, inst instance, glo
 	lw := &lineWriter{host: h, out: out, marker: marker}
 	_, err := ch.WriteTo(lw) // blocks, pumping the protocol, until the channel closes
 	lw.flush()
+	tracef("%s: WriteTo returned (err=%v ctxErr=%v markerSeen=%v lines=%d)",
+		h.name, err, ctx.Err(), lw.markerSeen, lw.emitted)
 
 	// A cancelled context means we tore the session down deliberately — stay silent. Anything else
 	// is the remote side going away on its own.
@@ -106,6 +115,7 @@ type lineWriter struct {
 	marker     string
 	buf        []byte
 	markerSeen bool
+	emitted    int // count of lines forwarded to out (post-marker), for debug tracing
 }
 
 func (w *lineWriter) Write(p []byte) (int, error) {
@@ -132,13 +142,18 @@ func (w *lineWriter) flush() {
 
 func (w *lineWriter) emit(line []byte) {
 	if !w.markerSeen {
-		// Exact-line equality stops on echo's *output* (the bare marker), not the echoed command
-		// line (which contains the marker plus the rest of the command).
+		tracef("%s: <pre-marker> %q", w.host.name, line)
+		// Exact equality (not suffix/contains) is deliberate: the echoed command line also contains
+		// the marker, and only the bare echo *output* — isolated on its own line by the leading
+		// echo in the command — must stop suppression.
 		if string(bytes.TrimSpace(line)) == w.marker {
 			w.markerSeen = true
+			tracef("%s: marker matched — streaming output now", w.host.name)
 		}
 		return
 	}
+	tracef("%s: <line> %q", w.host.name, line)
+	w.emitted++
 	w.out <- outMsg{text: w.host.logLine(string(line))}
 }
 

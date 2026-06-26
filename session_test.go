@@ -42,6 +42,22 @@ func TestLineWriter(t *testing.T) {
 		}
 	})
 
+	t.Run("givenShellLineEditorEscapesAbsorbedByLeadingEcho_whenWritten_thenMarkerMatchesCleanly", func(t *testing.T) {
+		// Models the double-echo command against a real sh-5.2 session. The bracketed-paste-disable
+		// escape + CR (observed in the trace) land on the leading echo's blank line; the marker
+		// then arrives alone on its own line. The echoed command line also contains the marker and
+		// must not trip the exact match.
+		got := collect(t, marker,
+			"\x1b[?2004hsh-5.2$ \r\x1b[K\rsh-5.2$ echo; echo "+marker+"; exec tail -n 10 -f /tmp/x 2>&1\r\n",
+			"\x1b[?2004l\r\r\n", // pollution + leading echo's blank line, discarded pre-marker
+			marker+"\r\n",
+			"10.0.0.1 - - GET /healthcheck 200\r\n",
+		)
+		if len(got) != 1 || got[0] != "h │ 10.0.0.1 - - GET /healthcheck 200" {
+			t.Fatalf("got %q", got)
+		}
+	})
+
 	t.Run("givenCRLFLineEndings_whenWritten_thenCarriageReturnTrimmed", func(t *testing.T) {
 		got := collect(t, marker, marker+"\r\n", "alpha\r\n", "beta\r\n")
 		want := []string{"h │ alpha", "h │ beta"}

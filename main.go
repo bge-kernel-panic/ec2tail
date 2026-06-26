@@ -56,9 +56,13 @@ func run() int {
 		return 2
 	}
 
-	// The library logs protocol noise (e.g. "WriteTo read error: EOF" on normal close) to the std
-	// logger. Keep our output clean; we report everything user-facing ourselves.
-	log.SetOutput(io.Discard)
+	_, debugEnabled = os.LookupEnv("EC2TAIL_DEBUG")
+	if !debugEnabled {
+		// The library logs protocol noise (e.g. "WriteTo read error: EOF" on normal close) to the
+		// std logger. Keep our output clean; we report everything user-facing ourselves. When
+		// debugging, leave it on stderr so the protocol-level errors are visible.
+		log.SetOutput(io.Discard)
+	}
 
 	// SIGINT/SIGTERM cancel the context; a watcher then tears down every live session, which
 	// unblocks the WriteTo read loops so the goroutines can exit.
@@ -71,6 +75,8 @@ func run() int {
 		return 1
 	}
 
+	tracef("region=%q tags=%v globs=%v", cfg.Region, tags, globs)
+
 	instances, err := discover(ctx, ec2.NewFromConfig(cfg), tags)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ec2tail: %v\n", err)
@@ -79,6 +85,9 @@ func run() int {
 	if len(instances) == 0 {
 		fmt.Fprintln(os.Stderr, "ec2tail: no running instances matched the given tags")
 		return 1
+	}
+	for _, inst := range instances {
+		tracef("discovered %s (%s)", inst.name, inst.id)
 	}
 	// Print the count before connecting, giving a Ctrl-C window.
 	fmt.Fprintf(os.Stderr, "ec2tail: connecting to %d instance(s)...\n", len(instances))
