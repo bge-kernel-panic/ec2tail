@@ -34,6 +34,20 @@ type tagList []tag
 
 func (t *tagList) String() string { return fmt.Sprintf("%v", []tag(*t)) }
 
+// parseColorMode maps a --color flag value to a colorMode.
+func parseColorMode(v string) (colorMode, error) {
+	switch v {
+	case "auto":
+		return colorAuto, nil
+	case "always":
+		return colorAlways, nil
+	case "never":
+		return colorNever, nil
+	default:
+		return colorAuto, fmt.Errorf("color must be auto, always, or never, got %q", v)
+	}
+}
+
 func (t *tagList) Set(v string) error {
 	key, value, ok := strings.Cut(v, "=")
 	if !ok || key == "" {
@@ -50,6 +64,7 @@ func main() {
 func run() int {
 	var tags tagList
 	showVersion := flag.Bool("version", false, "print version and exit")
+	colorFlag := flag.String("color", "auto", "when to colorize output: auto, always, or never")
 	flag.Var(&tags, "tag", "instance filter key=value (repeatable, AND-combined; at least one required)")
 	flag.Usage = usage
 	flag.Parse()
@@ -59,6 +74,12 @@ func run() int {
 		fmt.Println("License: GPL-3.0-only <https://www.gnu.org/licenses/gpl-3.0.html>")
 		fmt.Println("Third-party licenses: https://github.com/bge-kernel-panic/ec2tail/blob/main/THIRD_PARTY_LICENSES.md")
 		return 0
+	}
+
+	cmode, err := parseColorMode(*colorFlag)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ec2tail: %v\n", err)
+		return 2
 	}
 
 	globs := flag.Args()
@@ -103,7 +124,7 @@ func run() int {
 	// Print the count before connecting, giving a Ctrl-C window.
 	fmt.Fprintf(os.Stderr, "ec2tail: connecting to %d instance(s)...\n", len(instances))
 
-	hosts := buildHosts(instances)
+	hosts := buildHosts(instances, cmode)
 
 	out := make(chan outMsg, 256)
 	writerDone := make(chan struct{})
@@ -167,6 +188,9 @@ Flags:
                     characters, '?' matches one. Quote them so the local shell
                     does not expand them. Useful for messy tags, e.g.
                     --tag 'Name=web-*' (prefix) or --tag 'Name=*staging*'.
+  --color when      when to colorize output: auto (default; color only when
+                    stdout is a TTY), always (force color, e.g. when piping
+                    into grep or less -R), or never.
 
 Arguments:
   one or more remote file paths/globs (quote them so the local shell does not expand them)

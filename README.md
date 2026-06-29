@@ -47,6 +47,10 @@ ec2tail --tag key=value [--tag key=value ...] '<glob>' ['<glob>' ...]
   one. Quote them so your local shell does not expand them:
   - `--tag 'Name=web-*'` (prefix match)
   - `--tag 'Name=*staging*'` (substring match)
+- `--color when` — when to colorize output: `auto` (default; color only when stdout is a
+  TTY), `always` (force color even when piping, e.g. into `grep` or `less -R`), or `never`.
+  In `auto` mode the [`NO_COLOR`](https://no-color.org/) environment variable disables color;
+  `--color=always` overrides it.
 - **Positional arguments** — one or more remote file paths or globs to tail. Quote them too,
   so they travel to the remote instead of being expanded locally.
 

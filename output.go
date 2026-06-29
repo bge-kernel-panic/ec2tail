@@ -30,17 +30,34 @@ type host struct {
 	width int    // padding width for aligned prefixes
 }
 
-// colorsEnabled reports whether we should emit ANSI color: stdout is a TTY and NO_COLOR is unset.
-func colorsEnabled() bool {
-	if _, ok := os.LookupEnv("NO_COLOR"); ok {
+// colorMode selects when ANSI color is emitted.
+type colorMode int
+
+const (
+	colorAuto   colorMode = iota // color when stdout is a TTY
+	colorAlways                  // color unconditionally (e.g. piping into grep/less -R)
+	colorNever                   // never color
+)
+
+// colorsEnabled reports whether we should emit ANSI color for the given mode. NO_COLOR forces off in
+// auto mode but is overridden by an explicit --color=always.
+func colorsEnabled(mode colorMode) bool {
+	switch mode {
+	case colorAlways:
+		return true
+	case colorNever:
 		return false
+	default:
+		if _, ok := os.LookupEnv("NO_COLOR"); ok {
+			return false
+		}
+		return term.IsTerminal(int(os.Stdout.Fd()))
 	}
-	return term.IsTerminal(int(os.Stdout.Fd()))
 }
 
 // buildHosts assigns stable colors and a shared alignment width across all instances.
-func buildHosts(instances []instance) []*host {
-	useColor := colorsEnabled()
+func buildHosts(instances []instance, mode colorMode) []*host {
+	useColor := colorsEnabled(mode)
 	width := 0
 	for _, inst := range instances {
 		if len(inst.name) > width {
